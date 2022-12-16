@@ -1,0 +1,298 @@
+---
+title: "Forecasting Lakers Wins/Losses with Machine Learning and Linear Discriminant Analysis"
+format:
+  revealjs: 
+    theme: solarized
+editor_options: 
+  chunk_output_type: inline
+---
+
+## \| Brief History
+
+I got the idea to do this project from a previous project I did in my STAT 632 class. In that presentation I tried to model the relationship between Points Per Game and several other predictors.
+
+## \| Context
+
+| The data set for this analysis comes directly from [basketball reference](https://www.basketball-reference.com/teams/LAL/2023_games.html).
+
+-   Specifically it is the Lakers' average game data for the 2019-2020 regular season. I was interested in doing this analysis because that season was interrupted by the COVID-19 pandemic, leading the regular season for all teams to end at 73 games instead of the typical 82 game season.
+
+## \| Context
+
+-   At the time of the pandemic, the Lakers had only played 63 games as did other teams, and when it resumed they played an additional 10 games, not including a truncated playoffs. I was interested to see if there would be any differences between the pandemic games versus if the pandemic never happened.
+
+## Hypothesis
+
+**So, to do this I am interested in forecasting Wins and Losses based on four predictors: Team points, Opponent Points, and Games played with W/L as the response variable.**
+
+## \| Methods: Exploratory Analysis
+
+To start, I did a brief exploratory analysis in R.
+
+![Fig 1. Plot of Games versus Team points and Opponent points. Most of the blue curve (Lakers score) was higher than the yellow curve (opponents' score).](/Users/azukaatum/Atum_Azuka_Stat651_Midterm/plot1.png)
+
+## \| Analysis
+
+Here is the head of the dataset.
+
+| Games | Team Score | Opponent Score | Wins/Losses |
+|:-----:|:----------:|:--------------:|:-----------:|
+|   1   |    102     |      112       |      L      |
+|   2   |     95     |       86       |      W      |
+|   3   |    120     |      101       |      W      |
+|   4   |    120     |       91       |      W      |
+|   5   |    102     |      112       |      L      |
+
+```{r loading file into r, message=FALSE, warning=FALSE, include=FALSE}
+#| fig-cap: !expr nrow(mtcars)
+#| 
+gds = read.csv("63gds.csv", header =TRUE)
+gds63 = gds[1:4]
+head(gds63)
+
+
+gds63$W.L = as.factor((gds63$W_L))
+head(gds63)
+#contrasts(as.factor(gds63$W.L))
+
+gds63f = data.frame(gds63[1:3])
+head(gds63f)
+
+gds63f$W.L = c(gds63[,5])
+head(gds63f)
+
+#levels(gds63f$W.L)
+
+#convert W/L to numeric variable using as.factor()
+#
+
+colnames(gds63f) = c("G", "Tm", "Opp", "W.L")
+
+head(gds63f)
+
+```
+
+## | Analysis 
+
+I performed an 80/20 test and training set split for the data.
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+library("caret")
+
+#######Create 80/20 validation and training set
+
+validation_index = createDataPartition(gds63f$W.L, p = 0.80, list = FALSE)
+validation = gds63f[-validation_index,]
+
+gds63full = gds63f[validation_index,]
+
+sapply(gds63full, class)
+head(gds63full)
+
+percentage = prop.table(table(gds63full$W.L))*100
+percentage
+
+cbind(freq=table(gds63full$W.L), percentage = percentage)
+
+summary(gds63full)
+```
+
+
+```{r Model Selection, include=FALSE}
+library(caret) 
+
+control = trainControl(method = "cv", number = 10) 
+metric = "Accuracy"
+
+#linear
+set.seed(9999999) 
+fit.lda = train(W.L~., data = gds63full, method = "lda" , metric = metric, trControl = control)
+
+#nonlinear algo
+set.seed(9999999) 
+fit.cart = train(W.L~., data = gds63full, method = "rpart" , metric = metric, trControl = control)
+
+#k nearesr neighbor
+set.seed(9999999) 
+fit.knn = train(W.L~., data = gds63full, method = "knn" , metric = metric, trControl = control)
+
+#advanced algo
+set.seed(9999999) 
+fit.svm = train(W.L~., data = gds63full, method = "svmRadial" , metric = metric, trControl = control)
+
+#random forest
+set.seed(9999999) 
+fit.rf = train(W.L~., data = gds63full, method = "rf" , metric = metric, trControl = control)
+```
+
+```{r Summary of Model Selection, message=FALSE, warning=FALSE, include=FALSE}
+library(caret)
+
+results = resamples(list(lda=fit.lda, cart=fit.cart, knn=fit.knn, svm=fit.svm, rf=fit.rf))
+
+summary(results)
+
+```
+
+## \| Analysis
+
+I decided to test four different models to see which one was most accurate for my purposes. The dotplot showed that LDA (linear discriminant analysis) would be the best data to help predict W/L.
+
+## | Analysis 
+
+```{r echo=TRUE, message=FALSE, warning=FALSE, fig.cap="Fig 2. Analysis of the most effective model."}
+
+dotplot(results)
+
+```
+
+
+## | Analysis 
+
+-   The next step was to obtain a formula for the linear discriminant which would allow us to assign an LDA score to help us create an LDA score for W/L. The equation for the linear discriminant involving the predictors was 
+
+$$ LD1=-0.033G + 1.4956Tm + -1.431Opp $$. 
+
+## | Analysis 
+
+- LD scores were calculated for each value and then subtracted from the mean of each LD1 value for those values of LD1 that were a Win for the Lakers, and a Loss. Then those values were averaged to get a LDA score of -0.8667901 or roughly -0.867.
+
+## \| Analysis: Decision Boundary and LDA Score
+
+-   A score of about -0.867 means that, when incorporating other predictors in the LD1 calculation:
+
+1.  Any value above -0.867 was very likely to be a "W"
+2.  Any value below -0.867 was very likely to be a "L"
+
+## \| Analysis
+
+Since I already know the numbers of the missing games, the next step was to obtain a Team score and Opponent score based on the data.
+
+- I created a for-loop using an empty data frame to simulate 19 pairs of numbers randomly picked from the uniform distribution, with a min of 84 and a max of 143. 
+
+```r
+x=19
+N=2
+A = as.data.frame(matrix(data=NA, nrow=x, ncol = N))
+v = c("Tm", "Opp")
+colnames(A) = v
+
+for(i in 1:x){ 
+  ran = runif(19, min=84, max = 143)
+  A[i,] = round(sample(ran, 2, replace=FALSE), 0)
+}
+```
+
+## | Analysis
+
+- These min/max numbers are based on the fact that the Lakers lowest/highest score from any game was about an 88 and 142, while the lowest/highest score an opponent ever achieved against the Lakers was about 80 and 139, respectively.
+
+## \| Analysis
+
+Here are the top 5 data for the predicted scores and W/L.
+
+| G   | Predicted Team Score | Predicted Opponent Score | Predicted W/L |
+|-----|----------------------|--------------------------|---------------|
+| 64  | 109                  | 134                      | W             |
+| 65  | 93                   | 102                      | L             |
+| 66  | 119                  | 97                       | L             |
+| 67  | 97                   | 114                      | W             |
+
+## Results 
+
+From the simulation, I was able to conclude that had the Lakers played all 82 games, they would have won 55 games, and lost 27, with a final win percentage of 67% and a loss percentage of 33%.
+
+- This is lower than what they actually achieved during the truncated regular season, which was 49 W (78%) and 14 L (22.2%) out of 73.
+
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+
+library(MASS)
+library(tidyverse)
+library(caret)
+library(dplyr)
+
+library(flipMultivariates)
+library(devtools)
+
+#install_github("Displayr/flipMultivariates", dependencies = NA)
+
+theme_set(theme_classic())
+
+# Load the data
+gds63f
+
+#gds %>% select(G, Tm, Opp, W_L)
+
+#gds63f2 = gds63f %>% mutate(W.L = case_when(W.L == "W" ~ 1,                                                     W.L == "L" ~ 0))
+#gds63f2
+# Split the data into training (80%) and test set (20%)
+# 
+set.seed(999)
+training.samples <- gds63f$W.L %>%
+  createDataPartition(p = 0.8, list = FALSE)
+train.data <- gds63f[training.samples, ]
+test.data <- gds63f[-training.samples, ]
+
+# Estimate preprocessing parameters
+preproc.param <- train.data %>% preProcess(method = c("center", "scale"))
+preproc.param
+# Transform the data using the estimated parameters
+train.transformed <- preproc.param %>% predict(train.data)
+test.transformed <- preproc.param %>% predict(test.data)
+
+
+model <- lda(W.L~., data = train.transformed)
+
+# Make predictions
+predictions <- model %>% predict(test.transformed)
+predictions
+
+# Model accuracy
+mean(predictions$class==test.transformed$W.L)
+
+model <- lda(W.L~., data = train.transformed)
+model
+
+plot(model)
+#####################
+#####################
+#model2 <- LDA(W.L~., data = gds63f)
+#model2
+
+#plot(model2)
+####################
+####################
+
+predictions <- model %>% predict(test.transformed)
+names(predictions)
+
+# Predicted classes
+head(predictions$class, 6)
+# Predicted probabilities of class memebership.
+head(predictions$posterior, 6) 
+# Linear discriminants
+head(predictions$x, 3) 
+
+
+lda.data <- cbind(train.transformed, predict(model)$x)
+plot(model, col=as.numeric(gds63f$W.L))
+```
+
+
+```{r include=FALSE}
+#generating random scores for tm and opp
+x=19
+N=2
+A = as.data.frame(matrix(data=NA, nrow=x, ncol = N))
+v = c("Tm", "Opp")
+colnames(A) = v
+
+for(i in 1:x){ 
+  ran = runif(19, min=84, max = 143)
+  A[i,] = round(sample(ran, 2, replace=FALSE), 0)
+}
+
+A
+
+```
