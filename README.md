@@ -1,4 +1,4 @@
-# Forecasting-Wins-and-Losses-with-Machine-Learning
+# Forecasting Wins and Losses with Machine Learning
 
 
 
