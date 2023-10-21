@@ -24,3 +24,5 @@ I got the idea to do this project from a previous project I did in my STAT 632 c
 From the simulation, I was able to conclude that had the Lakers played all 82 games, they would have won 55 games, and lost 27, with a final win percentage of 67% and a loss percentage of 33%.
 
 - This is lower than what they actually achieved during the truncated regular season, which was 49 W (78%) and 14 L (22.2%) out of 73.
+
+I presented this research during a seminar. The presentation can be found [here.](https://aa1823.netlify.app/projects/forecasting-wins-and-losses-with-machine-learning/atumazuka_stat694_project#/title-slide)
